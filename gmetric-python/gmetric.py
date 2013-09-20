@@ -76,7 +76,6 @@ class Gmetric:
             self.socket.setsockopt(socket.IPPROTO_IP,
                                    socket.IP_MULTICAST_TTL, 20)
         self.hostport = (host, int(port))
-        #self.socket.connect(self.hostport)
 
     def send(self, NAME, VAL, TYPE='', UNITS='', SLOPE='both',
              TMAX=60, DMAX=0, GROUP="", SPOOF=""):
@@ -84,31 +83,25 @@ class Gmetric:
             raise ValueError("Slope must be one of: " + str(self.slope.keys()))
         if TYPE not in self.type:
             raise ValueError("Type must be one of: " + str(self.type))
-        if len(NAME) == 0:
+        if not NAME:
             raise ValueError("Name must be non-empty")
 
-        ( meta_msg, data_msg )  = gmetric_write(NAME, VAL, TYPE, UNITS, SLOPE, TMAX, DMAX, GROUP, SPOOF)
-        # print msg
-
+        meta_msg, data_msg = gmetric_write(NAME, VAL, TYPE, UNITS, SLOPE, TMAX, DMAX, GROUP, SPOOF)
         self.socket.sendto(meta_msg, self.hostport)
         self.socket.sendto(data_msg, self.hostport)
+
 
 def gmetric_write(NAME, VAL, TYPE, UNITS, SLOPE, TMAX, DMAX, GROUP, SPOOF):
     """
     Arguments are in all upper-case to match XML
     """
     packer = Packer()
-    HOSTNAME="test"
-    if SPOOF == "":
-        SPOOFENABLED=0
-    else :
-        SPOOFENABLED=1
+    HOSTNAME = SPOOF or "test"
+    SPOOFENABLED = int(bool(SPOOF))
+
     # Meta data about a metric
     packer.pack_int(128)
-    if SPOOFENABLED == 1:
-        packer.pack_string(SPOOF)
-    else:
-        packer.pack_string(HOSTNAME)
+    packer.pack_string(HOSTNAME)
     packer.pack_string(NAME)
     packer.pack_int(SPOOFENABLED)
     packer.pack_string(TYPE)
@@ -118,7 +111,7 @@ def gmetric_write(NAME, VAL, TYPE, UNITS, SLOPE, TMAX, DMAX, GROUP, SPOOF):
     packer.pack_uint(int(TMAX))
     packer.pack_uint(int(DMAX))
     # Magic number. Indicates number of entries to follow. Put in 1 for GROUP
-    if GROUP == "":
+    if not GROUP:
         packer.pack_int(0)
     else:
         packer.pack_int(1)
@@ -128,16 +121,13 @@ def gmetric_write(NAME, VAL, TYPE, UNITS, SLOPE, TMAX, DMAX, GROUP, SPOOF):
     # Actual data sent in a separate packet
     data = Packer()
     data.pack_int(128+5)
-    if SPOOFENABLED == 1:
-        data.pack_string(SPOOF)
-    else:
-        data.pack_string(HOSTNAME)
+    data.pack_string(HOSTNAME)
     data.pack_string(NAME)
     data.pack_int(SPOOFENABLED)
     data.pack_string("%s")
     data.pack_string(str(VAL))
 
-    return ( packer.get_buffer() ,  data.get_buffer() )
+    return (packer.get_buffer(), data.get_buffer())
 
 def gmetric_read(msg):
     unpacker = Unpacker(msg)
